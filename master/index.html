@@ -1,0 +1,293 @@
+<!DOCTYPE html>
+<meta charset="utf-8">
+<html>
+  <head>
+    <style>
+      rect.bordered {
+        stroke: #E6E6E6;
+        stroke-width:2px;   
+      }
+
+      text.mono {
+        font-size: 9pt;
+        font-family: Consolas, courier;
+        fill: #aaa;
+      }
+
+      text.axis-workweek {
+        fill: #000;
+      }
+
+      text.axis-worktime {
+        fill: #000;
+      }
+
+      .tooltip{
+        position: absolute;
+        width: 120;
+        height: auto;
+        font-family: simsun;
+        font-size: 14px;
+        text-align: center;
+        border-style: solid; 
+        border-width: 1px;
+        background-color: white;
+        border-radius: 5px;
+      }
+    </style>
+    <script src="http://d3js.org/d3.v3.js"></script>
+  </head>
+
+  <body>
+    <div id="chart"></div>
+
+    <!-- <div id="UD">
+      <input value=" ↑ " type="button" id="data-up">
+      <input value=" ↓ " type="button" id="data-down">      
+    </div> -->
+
+    <div id="LR">
+      <input type="button" value=" < " onclick="FuncLeft()">
+      <input type="button" value=" > " onclick="FuncRight()">
+    </div>
+
+    <div id="dataset-picker"></div>
+    <script type="text/javascript">
+      
+      // FIXME Variable
+      var x_size = 2250;
+      var x_bound = 50;
+
+      var w = 1680;
+      var h = 500;
+      
+      var datas = ["data.txt"];
+      
+      const status = ["Free","Internal Allocation","External Allocation","Available","Unavailable"];
+      // FIXME 
+
+      var index = 0;
+      function Xslots(d){
+        let arr = [];
+        for (let i = 0; i < x_size; i++) {
+          arr.push(i+d*x_bound+1);
+        }
+        return arr;
+      };
+
+
+      var grid_count = x_bound;
+      // var datas = ["data.tsv", "data2.tsv","Channels.txt"];
+
+
+// ANCHOR X,Y Label
+      var margin = { top: 50, right: 0, bottom: 100, left: 30 },
+          width = w - margin.left - margin.right,
+          height = h - margin.top - margin.bottom,
+          gridSize = Math.floor(width / grid_count),
+
+          // FIXME 
+          // Legend Width
+          legendElementWidth = gridSize*5
+          
+          // Lenged 群數
+          buckets = 5, 
+
+          // Lenged Color
+          colors = ["#ffffd9","#c7e9b4","#41b6c4","#225ea8","#081d58"], // alternatively colorbrewer.YlGnBu[9]
+          
+          // FIXME 
+          
+          Y_Values = ["1", "2", "3", "4", "5", "6", "7","8","9","10"],
+          // times = ["1", "2", "3", "4a", "5a", "6a", "7a", "8a", "9a", "10a", "11a", "12a", "1p", "2p", "3p", "4p", "5p", "6p", "7p", "8p", "9p", "10p", "11p", "12p"];
+          // X Label
+          X_Values = Xslots(index);
+          datasets = datas;
+
+      var svg = d3.select("#chart").append("svg")
+          .attr("width", width + margin.left + margin.right)
+          .attr("height", height + margin.top + margin.bottom)
+          .append("g")
+          .attr("transform", "translate(" + margin.left + "," + margin.top + ")");
+
+      // y label 
+      var YLabels = svg.selectAll(".yLabel")
+          .data(Y_Values)
+          .enter().append("text")
+            .text(function (d) { return d; })
+            .attr("x", 0)
+            .attr("y", function (d, i) { return i * gridSize; })
+            .style("text-anchor", "end")
+            .attr("transform", "translate(-6," + gridSize / 1.5 + ")")
+            .attr("class", function (d, i) { return ((i%2 == 0) ? "YLabels mono axis axis-workweek" : "YLabels mono axis"); });
+
+      // x label
+      var XLabels = svg.selectAll(".xLabel")
+          .data(X_Values)
+          .enter().append("text")
+            .text(function(d) { return d; })
+            .attr("x", function(d, i) { return i * gridSize; })
+            .attr("y", 0)
+            .style("text-anchor", "middle")
+            .attr("transform", "translate(" + gridSize / 2 + ", -6)")
+            .attr("class", function(d, i) { return ( parseInt(i/5)%2 == 0 ? "XLabels mono axis axis-worktime" : "XLabels mono axis"); });
+      
+
+// ANCHOR Heatmap Chart
+
+      var heatmapChart = function(tsvFile) {
+        // Dataset
+        d3.tsv(tsvFile,
+        function(d,i) {
+          if(i%x_size>= index*x_bound && i%x_size<(index+1)*x_bound)
+          {
+            return {
+            X: +d.X,
+            Y: +d.Y,
+            value: +d.value
+          }
+          };
+        },
+
+
+        // Card
+        function(error, data) {
+          var colorScale = d3.scale.quantile()
+              .domain([0, buckets - 1, d3.max(data, function (d) { return d.value; })])
+              .range(colors);
+
+          var cards = svg.selectAll(".hour")
+              .data(data, function(d) {return d.Y+':'+d.X;});
+
+          cards.append("title");
+
+
+          cards.enter().append("rect")
+              // .attr("x", function(d) { return (d.X - 1) * gridSize; })
+              // .attr("y", function(d) { return (d.Y - 1) * gridSize; })
+              .attr("x", function(d) { return (d.X - 1)%x_bound * gridSize; })
+              .attr("y", function(d) { return (d.Y - 1) * gridSize; })
+              .attr("rx", 4)
+              .attr("ry", 4)
+              .attr("class", "hour bordered")
+              .attr("width", gridSize)
+              .attr("height", gridSize)
+              .style("fill", colors[0])
+              .on("mouseover",function(d){
+                tooltip.html("<p />" + "&nbsp" + status[d.value] + "&nbsp"+"<p />")
+                  .style("left", (d3.event.pageX) + "px")
+                  .style("top", (d3.event.pageY + 20) + "px")
+                  .style("opacity",1.0);
+                })
+              .on("mousemove",function(d){
+                  tooltip.style("left", (d3.event.pageX) + "px")
+                    .style("top", (d3.event.pageY + 20) + "px");
+              })
+              .on("mouseout",function(d){
+                tooltip.style("opacity",0.0);
+              });
+
+
+
+          cards.transition().duration(1000)
+              .style("fill", function(d) { return colorScale(d.value); });
+
+          cards.select("title").text(function(d) { return d.value; });
+          
+          cards.exit().remove();
+
+
+          
+          var tooltip = d3.select("body")
+          .append("div")
+          .attr("class","tooltip")
+          .style("opacity",0.0);
+
+          
+// ANCHOR Legend
+          var legend = svg.selectAll(".legend")
+              .data([0].concat(colorScale.quantiles()), function(d) { return d; });
+
+
+
+          legend.enter().append("g")
+              .attr("class", "legend");
+
+          legend.append("rect")
+            .attr("x", function(d, i) { return legendElementWidth * i; })
+            .attr("y", height)
+            .attr("width", legendElementWidth)
+            .attr("height", gridSize / 2)
+            .style("fill", function(d, i) { return colors[i]; });
+
+          legend.append("text")
+            .attr("class", "mono")
+            .text(function(d,i) { return status[i]; })
+            .attr("x", function(d, i) { return legendElementWidth * (i); })
+            .attr("y", height + gridSize);
+
+          legend.exit().remove();
+
+        });  
+      };
+
+
+      
+      heatmapChart(datasets[0]);
+      
+
+
+
+      var datasetpicker = d3.select("#dataset-picker").selectAll(".dataset-button")
+      .data(datasets);
+      
+      datasetpicker.enter()
+        .append("input")
+        .attr("value", function(d){ return "Dataset " + d })
+        .attr("type", "button")
+        .attr("class", "dataset-button")
+        .on("click", function(d) {
+          // selected_data = d;
+          // console.log(selected_data);
+          heatmapChart(d);
+        });
+
+
+
+
+      function FuncLeft(){
+        if(index != 0)
+        {
+          index -= 1;
+          // console.log(index);
+          XLabel_change(); 
+          heatmapChart(datasets[0]);
+        }
+      }
+
+      function FuncRight(){
+        if(index != (x_size/x_bound)-1)
+        {
+          index += 1;  
+          // console.log(index);
+          XLabel_change();
+          heatmapChart(datasets[0]);
+        }
+      }  
+        
+
+
+      function XLabel_change()
+      {
+        XLabels.text(function(d,i){return index*x_bound+i+1});
+      }
+
+
+
+
+
+
+
+    </script>
+  </body>
+</html>
